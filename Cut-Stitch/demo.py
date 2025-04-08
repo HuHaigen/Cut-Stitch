@@ -1,148 +1,156 @@
-import numpy as np
-import cv2
-import os
+from PIL import Image
 import random
 
-###  Horizontal cutting & vertical stitching   #####
-def V(img,num):
-    #####其中一半拼成一副图
-    for i in range(0, num, 2):
-        if (i == 0):
-            hei_0 = int(i * heigt / num)##每块的长度
-            hei_1 = int((i + 1) * heigt / num)
-            hei_2 = int((i + 2) * heigt / num)
-            hei_3 = int((i + 3) * heigt / num)
 
-            wid_0 = 0
-            wid_1 = int(width)
+def cut_stitch_unidirectional(image, direction='horizontal', ratio=0.05):
+    """
+    对图像进行单向(水平/竖直)Cut-Stitch操作，使用PIL处理。
 
-            # 图片分块裁剪操作
-            VroiImg = img[hei_0:hei_1, wid_0:wid_1]  # [0,1]
-            # 图片分块裁剪操作
-            VroiImg2 = img[hei_2:hei_3, wid_0:wid_1]  # [2,3]
-            VroiImgd = np.vstack((VroiImg, VroiImg2))
-        else:
-            wid_0 = 0
-            wid_1 = int(width)
-            hei_x1 = int((i + 2) * heigt / num)
-            hei_x2 = int((i + 3) * heigt / num)
+    :param image: 输入图像(PIL.Image)
+    :param ratio: 裁切比例(0～1之间)
+    :param direction: 'horizontal' 或 'vertical'
+    :return: 返回拼接后的图像
+    """
+    width, height = image.size
+    if direction == 'horizontal':
+        # 按照裁切率 ratio 计算裁剪宽度
+        cut_size = int(ratio * width)
+        if cut_size < 1:
+            raise ValueError("裁切宽度过小，请增大 ratio 或使用更大图像。")
 
-            VroiImgx = img[hei_x1:hei_x2, wid_0:wid_1]  # [x1,x2]
-            VroiImgd = np.vstack((VroiImgd, VroiImgx))
+        strips = [image.crop((i * cut_size, 0, (i + 1) * cut_size, height)) for i in range(width // cut_size)]
 
-    #######另外一半的拼接成一幅图
-    for j in range(0, num, 2):
-        if (j == 0):
-            hei_0 = int((j + 1) * heigt / num)
-            hei_1 = int((j + 2) * heigt / num)
-            hei_2 = int((j + 3) * heigt / num)
-            hei_3 = int((j + 4) * heigt / num)
+        # 跳过拼接
+        img1 = Image.new('RGB', (width, height))
+        img2 = Image.new('RGB', (width, height))
 
-            wid_0 = 0
-            wid_1 = int(width)
+        # 拼接 strips[::2] 和 strips[1::2]
+        x_offset = 0
+        for strip in strips[::2]:
+            img1.paste(strip, (x_offset, 0))
+            x_offset += strip.width
 
-            # 图片分块裁剪操作
-            VroiImg = img[hei_0:hei_1, wid_0:wid_1]  # [0,1]
-            # 图片分块裁剪操作
-            VroiImg2 = img[hei_2:hei_3, wid_0:wid_1]  # [2,3]
+        x_offset = 0
+        for strip in strips[1::2]:
+            img2.paste(strip, (x_offset, 0))
+            x_offset += strip.width
 
-            VroiImgs = np.vstack((VroiImg, VroiImg2))
-        else:
-            wid_0 = 0
-            wid_1 = int(width)
-            hei_x11 = int((j + 3) * heigt / num)
-            hei_x22 = int((j + 4) * heigt / num)
+    elif direction == 'vertical':
+        # 按照裁切率 ratio 计算裁剪高度
+        cut_size = int(ratio * height)
+        if cut_size < 1:
+            raise ValueError("裁切高度过小，请增大 ratio 或使用更大图像。")
 
-            VroiImgx2 = img[hei_x11:hei_x22, wid_0:wid_1]  # [x1,x2]
-            VroiImgs = np.vstack((VroiImgs, VroiImgx2))
-    return VroiImgs,VroiImgd
+        strips = [image.crop((0, i * cut_size, width, (i + 1) * cut_size)) for i in range(height // cut_size)]
 
+        img1 = Image.new('RGB', (width, height))
+        img2 = Image.new('RGB', (width, height))
 
-###  Vertical cutting & horizontal stitching   #####
-def H(VImgcat,num):
-    for i in range(0, num, 2):
-        if(i==0):
-            # print(i)
-            # 调整裁剪区域像素位置
-            hei_0 = 0
-            hei_1 = int(heigt)
+        # 拼接 strips[::2] 和 strips[1::2]
+        y_offset = 0
+        for strip in strips[::2]:
+            img1.paste(strip, (0, y_offset))
+            y_offset += strip.height
 
-            wid_0 = int(i * width / num)
-            wid_1 = int((i + 1) * width / num)
-            wid_2 = int((i + 2) * width / num)
-            wid_3 = int((i + 3) * width / num)
-            # 图片分块裁剪操作
-            HroiImg = VImgcat[hei_0:hei_1, wid_0:wid_1]
-            # 图片分块裁剪操作
-            HroiImg2 = VImgcat[hei_0:hei_1, wid_2:wid_3]
-            HroiImgd = np.hstack((HroiImg, HroiImg2))
-        else:
-            # print(i)
-            # 调整裁剪区域像素位置
-            hei_0 = 0
-            hei_1 = int(heigt)
-            wid_x1 = int((i+2) * width / num)
-            wid_x2 = int((i+3) * width / num)
+        y_offset = 0
+        for strip in strips[1::2]:
+            img2.paste(strip, (0, y_offset))
+            y_offset += strip.height
 
-            HroiImgx = VImgcat[hei_0:hei_1, wid_x1:wid_x2]
-            HroiImgd = np.hstack((HroiImgd, HroiImgx))
+    else:
+        raise ValueError("direction 必须是 'horizontal' 或 'vertical'.")
 
-    for j in range(0, num, 2):
-        if(j==0):
-            # print(j)
-            hei_0 = 0
-            hei_1 = int(heigt)
-            wid_0 = int((j+1) * width / num)
-            wid_1 = int((j + 2) * width / num)
+    # 调整大小，使拼接后的图像和原图大小一致
+    img1 = img1.resize((width, height), Image.LANCZOS)
+    img2 = img2.resize((width, height), Image.LANCZOS)
 
-            wid_2 = int((j + 3) * width / num)
-            wid_3 = int((j + 4) * width / num)
-            # 图片分块裁剪操作
-            HroiImg = VImgcat[hei_0:hei_1, wid_0:wid_1]
-            # 图片分块裁剪操作
-            HroiImg2 =VImgcat[hei_0:hei_1, wid_2:wid_3]
-            HroiImgs = np.hstack((HroiImg, HroiImg2))
-        else:
-            # print(j)
-            hei_0 = 0
-            hei_1 = int(heigt)
-            wid_x11 = int((j+3) * width / num)
-            wid_x22 = int((j+4) * width / num)
-
-            HroiImgx2 = VImgcat[hei_0:hei_1, wid_x11:wid_x22]
-            HroiImgs = np.hstack((HroiImgs, HroiImgx2))
-    return HroiImgs,HroiImgd
+    return random.choice([img1, img2])
 
 
-# ############   single images   ################
-img = cv2.resize(cv2.imread('pic.png'),(640,640))#读取单张图片的代码#读取单张图片的代码 640,428
-# ############   single images   ################
+def cut_stitch_bidirectional(image, ratio=0.05):
+    """
+    对图像进行双向(H+V 或 V+H)Cut-Stitch操作，使用PIL处理。
 
-# ############   batch images   ################
-# path = os.path.expanduser("your path")
+    :param image: 输入图像(PIL.Image)
+    :param ratio: 裁切比例(0～1之间)
+    :return: 返回拼接后的图像
+    """
+    # 先进行水平裁切
+    horizontals_img = cut_stitch_unidirectional(image, ratio=ratio, direction='horizontal')
+    final_img = cut_stitch_unidirectional(horizontals_img, ratio=ratio, direction='vertical')
+
+    return final_img
+
+
+
+# import random
 #
-# for f in os.listdir(path):
-#     path = "your path" + f.strip()
-#     # img = cv2.resize(cv2.imread(path),(640,640))
-#     img = cv2.imread(path)
-# ############   batch images   ################
-
-heigt = img.shape[0]
-width = img.shape[1]
+# import cv2
+# import numpy as np
+# import os
 #
-if(heigt>width):
-    Vimg1,Vimg2 = V(img, int(heigt/4))
-    VHimg1,VHimg2 = H(Vimg1, int(width/4))
-    VHimg3,VHimg4 = H(Vimg2, int(width/16))
-else:
-    Himg1,Himg2 = H(img, int(width/4))
-    VHimg1,VHimg2 = V(Himg1, int(heigt/8))
-    VHimg3, VHimg4 = V(Himg2, int(heigt/16))
-
-cv2.imshow('origin', img)
-cv2.imshow('1', VHimg1)
-cv2.imshow('2', VHimg2)
-cv2.imshow('3', VHimg3)
-cv2.imshow('4', VHimg4)
-cv2.waitKey(0)
-
+#
+# def cut_stitch_unidirectional(image, direction='horizontal', ratio=0.05):
+#     """
+#     对图像进行单向(水平/竖直)Cut-Stitch操作，
+#     并返回2张分别使用“跳过拼接”得到的图像。
+#
+#     :param image: 输入图像(numpy数组, H×W×C)
+#     :param ratio: 裁切比例(0～1之间)
+#     :param direction: 'horizontal' 或 'vertical'
+#     :return: [image1, image2], 共2张图像
+#     """
+#     h, w, c = image.shape
+#     if direction == 'horizontal':
+#         # 按照裁切率 ratio 计算裁剪宽度
+#         cut_size = int(ratio * w)
+#         if cut_size < 1:
+#             raise ValueError("裁切宽度过小，请增大 ratio 或使用更大图像。")
+#         # 计算可切出多少条
+#         num_slices = w // cut_size
+#
+#         # 分割图像
+#         strips = [image[:, i * cut_size:(i + 1) * cut_size]
+#                   for i in range(num_slices)]
+#
+#         # 跳过拼接
+#         # 例如 strips[::2] + strips[1::2]
+#         # 生成两张图
+#
+#         img1 = np.hstack(strips[::2])
+#         img2 = np.hstack(strips[1::2])
+#
+#     elif direction == 'vertical':
+#         # 按照裁切率 ratio 计算裁剪高度
+#         cut_size = int(ratio * h)
+#         if cut_size < 1:
+#             raise ValueError("裁切高度过小，请增大 ratio 或使用更大图像。")
+#         num_slices = h // cut_size
+#
+#         strips = [image[i * cut_size:(i + 1) * cut_size, :]
+#                   for i in range(num_slices)]
+#
+#         img1 = np.vstack(strips[::2])
+#         img2 = np.vstack(strips[1::2])
+#     else:
+#         raise ValueError("direction 必须是 'horizontal' 或 'vertical'.")
+#     img1 = cv2.resize(img1, (w, h), interpolation=cv2.INTER_LINEAR)
+#     img2 = cv2.resize(img2, (w, h), interpolation=cv2.INTER_LINEAR)
+#     return random.choice([img1, img2])
+#
+#
+# def cut_stitch_bidirectional(image, ratio=0.05):
+#     """
+#     对图像进行双向(H+V 或 V+H)Cut-Stitch操作，
+#     返回4张图像。
+#     - 先在水平或竖直方向切割得到2张图
+#     - 再对这2张图进行垂直或水平切割，各得到2张，共4张
+#
+#     注：本例中默认先水平再竖直，
+#        也可按需求反过来先竖直再水平。
+#     """
+#     # 先进行水平裁切
+#     horizontals_img = cut_stitch_unidirectional(image, ratio=ratio, direction='horizontal')
+#     final_img = cut_stitch_unidirectional(horizontals_img, ratio=ratio, direction='vertical')
+#
+#     return final_img
